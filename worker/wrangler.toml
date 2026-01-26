@@ -4,9 +4,15 @@ compatibility_date = "2024-01-01"
 
 
 # [vars] Environment Variables
-[vars]
-MAINTENANCE_PAGE_URL = "https://my-maintenance.pages.dev"
-MAINTENANCE_MODE = "false"
+# NOTE: To prevent values from being reset on each deployment:
+# 1. Comment out the [vars] section below (or keep as examples only)
+# 2. Set environment variables directly in Cloudflare Dashboard:
+#    Workers & Pages > Your Worker > Settings > Variables
+# This way, your values will persist across deployments.
+
+# [vars]
+# MAINTENANCE_PAGE_URL = "https://my-maintenance.pages.dev"
+# MAINTENANCE_MODE = "false"
 
 # Routes are configured via GitHub Secrets (CLOUDFLARE_WORKER_ROUTE) in CI/CD
 
