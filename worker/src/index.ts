@@ -54,13 +54,24 @@ async function handleMaintenance(request: Request, env: Env): Promise<Response> 
     if (requestUrl.pathname.startsWith("/assets/") || requestUrl.pathname.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
         const assetUrl = new URL(requestUrl.pathname, maintenanceUrl.origin);
 
-        // Simple fetch without copying headers to avoid Host mismatch (Error 1003)
-        return fetch(assetUrl.toString());
+        // Fetch without Host header to avoid Error 1003
+        const assetRequest = new Request(assetUrl.toString(), {
+            method: 'GET',
+            redirect: 'follow',
+        });
+
+        return fetch(assetRequest);
     }
 
     // Serve Maintenance Page (HTML) with 503
     try {
-        const pageResponse = await fetch(env.MAINTENANCE_PAGE_URL);
+        // Fetch maintenance page without Host header to avoid Error 1003
+        const pageRequest = new Request(env.MAINTENANCE_PAGE_URL, {
+            method: 'GET',
+            redirect: 'follow',
+        });
+
+        const pageResponse = await fetch(pageRequest);
 
         return new Response(pageResponse.body, {
             status: 503,
