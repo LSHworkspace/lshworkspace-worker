@@ -16,10 +16,13 @@ export default {
 
         try {
             // 2. Fetch Upstream with Timeout
-            // Create a new Request to avoid Host header mismatch (Error 1003)
+            // Create new headers without Host header to avoid Error 1003
+            const headers = new Headers(request.headers);
+            headers.delete('Host');
+
             const upstreamRequest = new Request(request.url, {
                 method: request.method,
-                headers: request.headers,
+                headers: headers,
                 body: request.body,
                 redirect: 'follow',
             });
