@@ -7,10 +7,6 @@ export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         // 0. Manual Maintenance Mode Check
         if (env.MAINTENANCE_MODE === "true") {
-            // Force failure to trigger the catch block (fallback logic)
-            // or directly call the fallback logic. Let's force an error to reuse the catch block logic
-            // which handles fetching the maintenance page.
-            // Ideally refactor fallback logic to a function, but for now throwing is simplest path to reuse existing logic.
             return handleMaintenance(env);
         }
 
@@ -54,4 +50,3 @@ async function handleMaintenance(env: Env): Promise<Response> {
         return new Response("System Maintenance", { status: 503 });
     }
 }
-

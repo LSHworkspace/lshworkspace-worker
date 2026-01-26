@@ -5,6 +5,9 @@ compatibility_date = "2024-01-01"
 
 # [vars] Environment Variables
 [vars]
+MAINTENANCE_PAGE_URL = "https://my-maintenance.pages.dev"
+MAINTENANCE_MODE = "false"
+
 # Routes are configured via GitHub Secrets (CLOUDFLARE_WORKER_ROUTE) in CI/CD
 
 # Exclude static assets by NOT defining routes for them (Cloudflare default behavior is strictly matching configured routes)
