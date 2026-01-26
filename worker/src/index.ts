@@ -1,9 +1,19 @@
 export interface Env {
     MAINTENANCE_PAGE_URL: string;
+    MAINTENANCE_MODE?: string; // "true" or "false"
 }
 
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+        // 0. Manual Maintenance Mode Check
+        if (env.MAINTENANCE_MODE === "true") {
+            // Force failure to trigger the catch block (fallback logic)
+            // or directly call the fallback logic. Let's force an error to reuse the catch block logic
+            // which handles fetching the maintenance page.
+            // Ideally refactor fallback logic to a function, but for now throwing is simplest path to reuse existing logic.
+            return handleMaintenance(env);
+        }
+
         // 1. Timeout Logic (AbortController)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds timeout
@@ -23,20 +33,25 @@ export default {
 
         } catch (e) {
             // 5. Failover Logic (Timeout, Network Error, or 5xx)
-            try {
-                const pageResponse = await fetch(env.MAINTENANCE_PAGE_URL);
-
-                return new Response(pageResponse.body, {
-                    status: 503,
-                    headers: {
-                        "Content-Type": "text/html;charset=UTF-8",
-                        "Cache-Control": "no-store",
-                    },
-                });
-            } catch (err) {
-                // Last Resort Fallback
-                return new Response("System Maintenance", { status: 503 });
-            }
+            return handleMaintenance(env);
         }
     },
 };
+
+async function handleMaintenance(env: Env): Promise<Response> {
+    try {
+        const pageResponse = await fetch(env.MAINTENANCE_PAGE_URL);
+
+        return new Response(pageResponse.body, {
+            status: 503,
+            headers: {
+                "Content-Type": "text/html;charset=UTF-8",
+                "Cache-Control": "no-store",
+            },
+        });
+    } catch (err) {
+        // Last Resort Fallback
+        return new Response("System Maintenance", { status: 503 });
+    }
+}
+

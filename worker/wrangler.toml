@@ -1,18 +1,10 @@
-name = "failover-worker"
+name = "worker-placeholder" # Overridden by CI secrets
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
+
 # [vars] Environment Variables
 [vars]
-MAINTENANCE_PAGE_URL = "https://my-maintenance.pages.dev"
-
-# Cost Optimization: Only route HTML/root requests to the Worker
-[[routes]]
-pattern = "example.com/"
-zone_name = "example.com"
-
-[[routes]]
-pattern = "example.com/*.html"
-zone_name = "example.com"
+# Routes are configured via GitHub Secrets (CLOUDFLARE_WORKER_ROUTE) in CI/CD
 
 # Exclude static assets by NOT defining routes for them (Cloudflare default behavior is strictly matching configured routes)
