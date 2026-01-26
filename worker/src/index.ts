@@ -42,7 +42,20 @@ async function handleMaintenance(request: Request, env: Env): Promise<Response> 
     // React apps usually serve assets under /assets/
     if (requestUrl.pathname.startsWith("/assets/") || requestUrl.pathname.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
         const assetUrl = new URL(requestUrl.pathname, maintenanceUrl.origin);
-        return fetch(assetUrl.toString(), request);
+
+        // Create a new request with the new URL, but keep method, body, etc.
+        const newRequest = new Request(assetUrl.toString(), {
+            method: request.method,
+            headers: request.headers,
+            body: request.body,
+            redirect: "follow"
+        });
+
+        // IMPORTANT: Set the Host header to the target maintenance domain
+        // Otherwise Cloudflare rejects it with Error 1003 (Direct IP Access)
+        newRequest.headers.set("Host", maintenanceUrl.hostname);
+
+        return fetch(newRequest);
     }
 
     // Serve Maintenance Page (HTML) with 503
