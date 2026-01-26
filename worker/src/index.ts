@@ -7,7 +7,7 @@ export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         // 0. Manual Maintenance Mode Check
         if (env.MAINTENANCE_MODE === "true") {
-            return handleMaintenance(env);
+            return handleMaintenance(request, env);
         }
 
         // 1. Timeout Logic (AbortController)
@@ -29,12 +29,23 @@ export default {
 
         } catch (e) {
             // 5. Failover Logic (Timeout, Network Error, or 5xx)
-            return handleMaintenance(env);
+            return handleMaintenance(request, env);
         }
     },
 };
 
-async function handleMaintenance(env: Env): Promise<Response> {
+async function handleMaintenance(request: Request, env: Env): Promise<Response> {
+    const maintenanceUrl = new URL(env.MAINTENANCE_PAGE_URL);
+    const requestUrl = new URL(request.url);
+
+    // Pass-through for static assets (CSS, JS, Images, etc.)
+    // React apps usually serve assets under /assets/
+    if (requestUrl.pathname.startsWith("/assets/") || requestUrl.pathname.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+        const assetUrl = new URL(requestUrl.pathname, maintenanceUrl.origin);
+        return fetch(assetUrl.toString(), request);
+    }
+
+    // Serve Maintenance Page (HTML) with 503
     try {
         const pageResponse = await fetch(env.MAINTENANCE_PAGE_URL);
 
