@@ -16,7 +16,15 @@ export default {
 
         try {
             // 2. Fetch Upstream with Timeout
-            const response = await fetch(request, { signal: controller.signal });
+            // Create a new Request to avoid Host header mismatch (Error 1003)
+            const upstreamRequest = new Request(request.url, {
+                method: request.method,
+                headers: request.headers,
+                body: request.body,
+                redirect: 'follow',
+            });
+
+            const response = await fetch(upstreamRequest, { signal: controller.signal });
             clearTimeout(timeoutId); // Clear timeout on success
 
             // 3. Normal Operation Check
