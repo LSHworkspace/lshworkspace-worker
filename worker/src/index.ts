@@ -7,7 +7,7 @@ export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         // 0. Manual Maintenance Mode Check
         if (env.MAINTENANCE_MODE === "true") {
-            return handleMaintenance(env);
+            return handleMaintenance(request, env);
         }
 
         // 1. Timeout Logic (AbortController)
@@ -40,56 +40,50 @@ export default {
 
         } catch (e) {
             // 5. Failover Logic (Timeout, Network Error, or 5xx)
-            return handleMaintenance(env);
+            return handleMaintenance(request, env);
         }
     },
 };
 
-async function handleMaintenance(env: Env): Promise<Response> {
+async function handleMaintenance(request: Request, env: Env): Promise<Response> {
+    const maintenanceUrl = new URL(env.MAINTENANCE_PAGE_URL);
+    const requestUrl = new URL(request.url);
+
+    // Proxy all requests (HTML and assets) from maintenance page
+    // This keeps the maintenance page URL hidden from the browser
     try {
-        const pageResponse = await fetch(env.MAINTENANCE_PAGE_URL);
-        const maintenanceUrl = new URL(env.MAINTENANCE_PAGE_URL);
+        // Build the target URL: use the requested path with maintenance page origin
+        const targetUrl = new URL(requestUrl.pathname + requestUrl.search, maintenanceUrl.origin);
 
-        // Rewrite HTML to use absolute URLs for assets
-        // This allows the browser to fetch assets directly from the maintenance page origin
-        const rewriter = new HTMLRewriter()
-            .on('link[href]', new AttributeRewriter('href', maintenanceUrl.origin))
-            .on('script[src]', new AttributeRewriter('src', maintenanceUrl.origin))
-            .on('img[src]', new AttributeRewriter('src', maintenanceUrl.origin))
-            .on('source[src]', new AttributeRewriter('src', maintenanceUrl.origin))
-            .on('source[srcset]', new AttributeRewriter('srcset', maintenanceUrl.origin));
-
-        const transformedResponse = rewriter.transform(pageResponse);
-
-        return new Response(transformedResponse.body, {
-            status: 503,
-            headers: {
-                "Content-Type": "text/html;charset=UTF-8",
-                "Cache-Control": "no-store",
-            },
+        // Create a clean request without Host header to avoid Error 1003
+        const proxyRequest = new Request(targetUrl.toString(), {
+            method: request.method,
+            headers: new Headers(), // No headers to avoid any conflicts
+            redirect: 'follow',
         });
+
+        const response = await fetch(proxyRequest);
+
+        // For HTML, return with 503 status
+        const contentType = response.headers.get('Content-Type') || '';
+        if (contentType.includes('text/html')) {
+            return new Response(response.body, {
+                status: 503,
+                headers: {
+                    "Content-Type": "text/html;charset=UTF-8",
+                    "Cache-Control": "no-store",
+                },
+            });
+        }
+
+        // For assets (CSS, JS, images, etc.), return as-is
+        return new Response(response.body, {
+            status: response.status,
+            headers: response.headers,
+        });
+
     } catch (err) {
         // Last Resort Fallback
         return new Response("System Maintenance", { status: 503 });
-    }
-}
-
-// HTMLRewriter handler to convert relative URLs to absolute URLs
-class AttributeRewriter {
-    private attributeName: string;
-    private baseUrl: string;
-
-    constructor(attributeName: string, baseUrl: string) {
-        this.attributeName = attributeName;
-        this.baseUrl = baseUrl;
-    }
-
-    element(element: Element) {
-        const attrValue = element.getAttribute(this.attributeName);
-        if (attrValue && !attrValue.startsWith('http') && !attrValue.startsWith('//') && !attrValue.startsWith('data:')) {
-            // Convert relative URL to absolute URL
-            const absoluteUrl = new URL(attrValue, this.baseUrl).toString();
-            element.setAttribute(this.attributeName, absoluteUrl);
-        }
     }
 }
