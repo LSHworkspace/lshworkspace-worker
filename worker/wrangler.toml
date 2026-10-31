@@ -2,18 +2,12 @@ name = "worker-placeholder" # Overridden by CI secrets
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
+routes = [
+    { pattern = "lshworkspace.com/*", zone_name = "lshworkspace.com" },
+    { pattern = "www.lshworkspace.com/*", zone_name = "lshworkspace.com" },
+]
 
-# [vars] Environment Variables
-# NOTE: To prevent values from being reset on each deployment:
-# 1. Comment out the [vars] section below (or keep as examples only)
-# 2. Set environment variables directly in Cloudflare Dashboard:
-#    Workers & Pages > Your Worker > Settings > Variables
-# This way, your values will persist across deployments.
-
-[vars]
-MAINTENANCE_PAGE_URL = "https://lshworkspace-maintenance-page.pages.dev"
-MAINTENANCE_MODE = "false"
-
-# Routes are configured via GitHub Secrets (CLOUDFLARE_WORKER_ROUTE) in CI/CD
-
-# Exclude static assets by NOT defining routes for them (Cloudflare default behavior is strictly matching configured routes)
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true

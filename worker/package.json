@@ -4,7 +4,8 @@
     "description": "",
     "main": "src/index.ts",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "test": "tsx --test src/worker.test.mjs",
+        "sync:maintenance": "node scripts/sync-maintenance.mjs",
         "typecheck": "tsc --noEmit"
     },
     "keywords": [],
@@ -12,6 +13,7 @@
     "license": "ISC",
     "devDependencies": {
         "@cloudflare/workers-types": "^4.20240101.0",
+        "tsx": "^4.20.6",
         "typescript": "^5.3.3"
     }
 }

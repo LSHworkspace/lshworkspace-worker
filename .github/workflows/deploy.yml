@@ -3,11 +3,16 @@ name: Worker CI/CD
 on:
   push:
     branches: [main]
-    paths: ['worker/**']
+    paths: ['worker/**', '.github/workflows/deploy.yml']
   pull_request:
     branches: [main]
-    paths: ['worker/**']
+    paths: ['worker/**', '.github/workflows/deploy.yml']
   workflow_dispatch:
+    inputs:
+      maintenance_ref:
+        description: Maintenance page git ref to embed
+        required: false
+        default: main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,16 +23,44 @@ jobs:
     name: Type Check & Validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out Worker
+        uses: actions/checkout@v4
+        with:
+          path: worker-repo
+      - name: Check out maintenance page
+        uses: actions/checkout@v4
+        with:
+          repository: LSHworkspace/lshworkspace-maintenance-page
+          ref: ${{ inputs.maintenance_ref || 'main' }}
+          path: maintenance-page
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: worker/package-lock.json
-      - run: npm ci
-        working-directory: worker
-      - run: npm run typecheck
-        working-directory: worker
+          cache-dependency-path: |
+            worker-repo/worker/package-lock.json
+            maintenance-page/package-lock.json
+      - name: Build self-contained maintenance page
+        run: npm ci && npm run build
+        working-directory: maintenance-page
+      - name: Install Worker dependencies
+        run: npm ci
+        working-directory: worker-repo/worker
+      - name: Embed maintenance page
+        run: npm run sync:maintenance -- "$GITHUB_WORKSPACE/maintenance-page/dist/index.html"
+        working-directory: worker-repo/worker
+      - name: Type check
+        run: npm run typecheck
+        working-directory: worker-repo/worker
+      - name: Test
+        run: npm test
+        working-directory: worker-repo/worker
+      - name: Upload embedded page
+        uses: actions/upload-artifact@v4
+        with:
+          name: maintenance-inline-html
+          path: worker-repo/worker/src/maintenance.html
+          retention-days: 1
 
   deploy:
     name: Deploy
@@ -35,11 +68,19 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out Worker
+        uses: actions/checkout@v4
+        with:
+          path: worker-repo
+      - name: Download embedded page
+        uses: actions/download-artifact@v4
+        with:
+          name: maintenance-inline-html
+          path: worker-repo/worker/src
       - name: Deploy to Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --name ${{ secrets.CLOUDFLARE_WORKER_NAME }} --route ${{ vars.CLOUDFLARE_WORKER_ROUTE }} --keep-vars
-          workingDirectory: 'worker'
+          command: deploy --name ${{ secrets.CLOUDFLARE_WORKER_NAME }}
+          workingDirectory: worker-repo/worker
