@@ -10,3 +10,4 @@ npm-debug.log
 dist/
 worker/node_modules/
 worker/.wrangler/
+worker/src/maintenance.html
