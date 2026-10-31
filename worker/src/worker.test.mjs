@@ -49,6 +49,32 @@ test('replaces the known broken legacy maintenance page even when it returns 200
     assert.equal(await response.text(), maintenanceHtml)
 })
 
+test('inspects legacy navigation pages for HEAD requests and returns an empty 503', async () => {
+    const legacyHtml = '<script src="https://maintenancepage.lshworkspace.com/assets/index.js"></script>'
+    let upstreamMethod
+    const worker = createWorker(maintenanceHtml, {
+        fetcher: async (request) => {
+            upstreamMethod = request.method
+            return new Response(legacyHtml, {
+                status: 200,
+                headers: { 'Content-Type': 'text/html; charset=UTF-8' },
+            })
+        },
+        logger: silentLogger,
+    })
+    const request = new Request('https://lshworkspace.com/', {
+        method: 'HEAD',
+        headers: { Accept: 'text/html' },
+    })
+
+    const response = await worker.fetch(request)
+
+    assert.equal(upstreamMethod, 'GET')
+    assert.equal(response.status, 503)
+    assert.equal(response.headers.get('X-LSHworkspace-Fallback'), 'origin-invalid-maintenance-page')
+    assert.equal(await response.text(), '')
+})
+
 test('returns inline HTML with 503 for navigation requests when origin fails', async () => {
     const worker = createWorker(maintenanceHtml, {
         fetcher: async () => new Response('failed', { status: 502 }),

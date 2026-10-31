@@ -86,13 +86,15 @@ export function createWorker(
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
             const pathname = new URL(request.url).pathname
+            const inspectHeadNavigation = request.method === 'HEAD'
+                && isNavigationRequest(request)
 
             try {
                 const headers = new Headers(request.headers)
                 headers.delete('Host')
 
                 const upstreamRequest = new Request(request.url, {
-                    method: request.method,
+                    method: inspectHeadNavigation ? 'GET' : request.method,
                     headers,
                     body: request.method === 'GET' || request.method === 'HEAD'
                         ? undefined
@@ -115,6 +117,15 @@ export function createWorker(
                         const reason = 'origin-invalid-maintenance-page'
                         logger.warn('Serving maintenance fallback', { pathname, reason })
                         return createFallbackResponse(request, maintenanceHtml, reason)
+                    }
+
+                    if (inspectHeadNavigation) {
+                        await response.body?.cancel()
+                        return new Response(null, {
+                            status: response.status,
+                            statusText: response.statusText,
+                            headers: response.headers,
+                        })
                     }
 
                     return response
