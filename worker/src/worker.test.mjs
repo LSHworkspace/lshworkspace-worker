@@ -87,7 +87,10 @@ test('returns inline HTML with 503 for navigation requests when origin fails', a
     const response = await worker.fetch(request)
 
     assert.equal(response.status, 503)
-    assert.equal(response.headers.get('Cache-Control'), 'no-store, no-cache, must-revalidate')
+    assert.equal(
+        response.headers.get('Cache-Control'),
+        'no-store, no-cache, must-revalidate, no-transform',
+    )
     assert.equal(response.headers.get('Retry-After'), '300')
     assert.equal(response.headers.get('X-LSHworkspace-Fallback'), 'origin-502')
     assert.match(response.headers.get('Content-Security-Policy'), /script-src 'unsafe-inline'/)

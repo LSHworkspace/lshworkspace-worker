@@ -31,7 +31,7 @@ function createFallbackResponse(
     reason: string,
 ): Response {
     const commonHeaders = {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, no-transform',
         'Retry-After': String(RETRY_AFTER_SECONDS),
         'X-LSHworkspace-Fallback': reason,
         'X-Robots-Tag': 'noindex, nofollow, noarchive',
