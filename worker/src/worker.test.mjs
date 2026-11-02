@@ -5,6 +5,71 @@ import { createWorker } from './worker.ts'
 const maintenanceHtml = '<!doctype html><title>Maintenance</title><div id="root">Offline</div>'
 const silentLogger = { warn() {} }
 
+test('bypasses all maintenance behavior when the top-level system switch is disabled', async () => {
+    let upstreamMethod
+    const worker = createWorker(maintenanceHtml, {
+        fetcher: async (request) => {
+            upstreamMethod = request.method
+            return new Response('origin failed', { status: 503 })
+        },
+        logger: silentLogger,
+    })
+    const request = new Request('https://lshworkspace.com/', {
+        method: 'HEAD',
+        headers: { Accept: 'text/html' },
+    })
+
+    const response = await worker.fetch(request, {
+        MAINTENANCE_SYSTEM_ENABLED: 'false',
+        FORCED_MAINTENANCE_ENABLED: 'true',
+    })
+
+    assert.equal(upstreamMethod, 'HEAD')
+    assert.equal(response.status, 503)
+    assert.equal(response.headers.get('X-LSHworkspace-Fallback'), null)
+})
+
+test('propagates origin failures when the top-level system switch is disabled', async () => {
+    const worker = createWorker(maintenanceHtml, {
+        fetcher: async () => {
+            throw new Error('network down')
+        },
+        logger: silentLogger,
+    })
+
+    await assert.rejects(
+        worker.fetch(
+            new Request('https://lshworkspace.com/'),
+            { MAINTENANCE_SYSTEM_ENABLED: 'false' },
+        ),
+        /network down/,
+    )
+})
+
+test('serves maintenance immediately when the forced switch is enabled', async () => {
+    let originCalled = false
+    const worker = createWorker(maintenanceHtml, {
+        fetcher: async () => {
+            originCalled = true
+            return new Response('origin', { status: 200 })
+        },
+        logger: silentLogger,
+    })
+    const request = new Request('https://lshworkspace.com/', {
+        headers: { Accept: 'text/html' },
+    })
+
+    const response = await worker.fetch(request, {
+        MAINTENANCE_SYSTEM_ENABLED: 'true',
+        FORCED_MAINTENANCE_ENABLED: 'true',
+    })
+
+    assert.equal(originCalled, false)
+    assert.equal(response.status, 503)
+    assert.equal(response.headers.get('X-LSHworkspace-Fallback'), 'forced-maintenance')
+    assert.equal(await response.text(), maintenanceHtml)
+})
+
 test('passes through successful origin responses', async () => {
     const worker = createWorker(maintenanceHtml, {
         fetcher: async () => new Response('origin', { status: 200 }),

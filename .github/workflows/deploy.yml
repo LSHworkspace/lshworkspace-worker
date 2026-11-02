@@ -13,6 +13,16 @@ on:
         description: Maintenance page git ref to embed
         required: false
         default: main
+      maintenance_system_enabled:
+        description: Enable the maintenance system (forced mode and automatic detection)
+        required: true
+        type: boolean
+        default: true
+      forced_maintenance_enabled:
+        description: Force maintenance without checking the origin
+        required: true
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,10 +87,23 @@ jobs:
         with:
           name: maintenance-inline-html
           path: worker-repo/worker/src
-      - name: Deploy to Cloudflare
+      - name: Deploy to Cloudflare and preserve runtime switches
+        if: github.event_name != 'workflow_dispatch'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --name ${{ secrets.CLOUDFLARE_WORKER_NAME }}
+          command: deploy --name ${{ secrets.CLOUDFLARE_WORKER_NAME }} --keep-vars
+          workingDirectory: worker-repo/worker
+      - name: Deploy to Cloudflare with requested runtime switches
+        if: github.event_name == 'workflow_dispatch'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            deploy --name ${{ secrets.CLOUDFLARE_WORKER_NAME }}
+            --keep-vars
+            --var MAINTENANCE_SYSTEM_ENABLED:${{ inputs.maintenance_system_enabled }}
+            --var FORCED_MAINTENANCE_ENABLED:${{ inputs.forced_maintenance_enabled }}
           workingDirectory: worker-repo/worker

@@ -10,6 +10,33 @@ interface WorkerOptions {
     timeoutMs?: number
 }
 
+export interface Env {
+    MAINTENANCE_SYSTEM_ENABLED?: string
+    FORCED_MAINTENANCE_ENABLED?: string
+}
+
+function readBooleanFlag(value: string | undefined, defaultValue: boolean): boolean {
+    if (value === undefined) {
+        return defaultValue
+    }
+
+    return value.trim().toLowerCase() === 'true'
+}
+
+function createUpstreamRequest(request: Request, inspectHeadNavigation = false): Request {
+    const headers = new Headers(request.headers)
+    headers.delete('Host')
+
+    return new Request(request.url, {
+        method: inspectHeadNavigation ? 'GET' : request.method,
+        headers,
+        body: request.method === 'GET' || request.method === 'HEAD'
+            ? undefined
+            : request.body,
+        redirect: 'follow',
+    })
+}
+
 function isNavigationRequest(request: Request): boolean {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
         return false
@@ -82,25 +109,35 @@ export function createWorker(
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
     return {
-        async fetch(request: Request): Promise<Response> {
+        async fetch(request: Request, env: Env = {}): Promise<Response> {
+            const maintenanceSystemEnabled = readBooleanFlag(
+                env.MAINTENANCE_SYSTEM_ENABLED,
+                true,
+            )
+
+            if (!maintenanceSystemEnabled) {
+                return fetcher(createUpstreamRequest(request))
+            }
+
+            const pathname = new URL(request.url).pathname
+            const forcedMaintenanceEnabled = readBooleanFlag(
+                env.FORCED_MAINTENANCE_ENABLED,
+                false,
+            )
+
+            if (forcedMaintenanceEnabled) {
+                const reason = 'forced-maintenance'
+                logger.warn('Serving maintenance fallback', { pathname, reason })
+                return createFallbackResponse(request, maintenanceHtml, reason)
+            }
+
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-            const pathname = new URL(request.url).pathname
             const inspectHeadNavigation = request.method === 'HEAD'
                 && isNavigationRequest(request)
 
             try {
-                const headers = new Headers(request.headers)
-                headers.delete('Host')
-
-                const upstreamRequest = new Request(request.url, {
-                    method: inspectHeadNavigation ? 'GET' : request.method,
-                    headers,
-                    body: request.method === 'GET' || request.method === 'HEAD'
-                        ? undefined
-                        : request.body,
-                    redirect: 'follow',
-                })
+                const upstreamRequest = createUpstreamRequest(request, inspectHeadNavigation)
 
                 const response = await fetcher(upstreamRequest, {
                     signal: controller.signal,
